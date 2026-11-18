@@ -1,0 +1,35 @@
+[
+  {
+    "request_id": "req_01",
+    "day": 1,
+    "character_id": "char_01",
+    "param_01_target": 1,
+    "param_03_target": 0,
+    "maximum_coins": 2
+  },
+  {
+    "request_id": "req_02",
+    "day": 1,
+    "character_id": "char_02",
+    "param_02_target": 2,
+    "param_03_target": 1,
+    "maximum_coins": 2
+  },
+  {
+    "request_id": "req_03",
+    "day": 1,
+    "character_id": "char_03",
+    "param_01_target": 1,
+    "param_02_target": 1,
+    "param_03_target": 2,
+    "maximum_coins": 3
+  },
+  {
+    "request_id": "req_04",
+    "day": 1,
+    "character_id": "char_04",
+    "param_01_target": 2,
+    "param_02_target": 2,
+    "maximum_coins": 2
+  }
+]

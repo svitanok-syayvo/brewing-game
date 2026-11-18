@@ -1,0 +1,23 @@
+[
+  {
+    "parameter_id": "param_01",
+    "name": "Nature",
+    "state_0_name": "Neutral",
+    "state_1_name": "Healing",
+    "state_2_name": "Toxic"
+  },
+  {
+    "parameter_id": "param_02",
+    "name": "Taste",
+    "state_0_name": "Neutral",
+    "state_1_name": "Sweet",
+    "state_2_name": "Vile"
+  },
+  {
+    "parameter_id": "param_03",
+    "name": "Smell",
+    "state_0_name": "Neutral",
+    "state_1_name": "Aromatic",
+    "state_2_name": "Putrid"
+  }
+]

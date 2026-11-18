@@ -67,6 +67,16 @@ All values (Ingredient effects, supply, Requests, Characters, Parameters) live i
 python3 -I tools/export_data.py
 ```
 
+If your copy of the sheet is somewhere else, pass its path as an argument. Each tab except "Read Me" becomes `data/<tab>.json`. Empty cells are left out, and the export stops with the cell's address (such as `Requests!G2`) if a number is not whole or a formula shows an error. Each Request target cell (`param_NN_target`) must hold a State (`0`, `1` or `2`) or the word `any`. `any` means the Request does not ask for that Parameter, and it is left out of the JSON. An empty or invalid target cell stops the export. Commit the regenerated `data/` files.
+
+In game code, read values through the `GameData` autoload:
+
+```gdscript
+GameData.rows("requests")                           # every row, in sheet order
+GameData.row("ingredients", "ing_01")["name"]       # one row by its ID
+GameData.row("requests", "req_01").get("param_02_target")  # null = not requested
+```
+
 ## Web export
 
 1. Make sure `build/.gdignore` exists. `build/` is git-ignored, so a fresh clone does not have it, and without it the editor imports the exported files:

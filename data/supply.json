@@ -1,0 +1,38 @@
+[
+  {
+    "ingredient_id": "ing_01",
+    "day_1": 1,
+    "day_2": 1,
+    "day_3": 1
+  },
+  {
+    "ingredient_id": "ing_02",
+    "day_1": 1,
+    "day_2": 1,
+    "day_3": 1
+  },
+  {
+    "ingredient_id": "ing_03",
+    "day_1": 1,
+    "day_2": 1,
+    "day_3": 1
+  },
+  {
+    "ingredient_id": "ing_04",
+    "day_1": 1,
+    "day_2": 1,
+    "day_3": 1
+  },
+  {
+    "ingredient_id": "ing_05",
+    "day_1": 1,
+    "day_2": 1,
+    "day_3": 1
+  },
+  {
+    "ingredient_id": "ing_06",
+    "day_1": 1,
+    "day_2": 1,
+    "day_3": 1
+  }
+]

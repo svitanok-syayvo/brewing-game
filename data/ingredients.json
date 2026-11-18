@@ -1,0 +1,38 @@
+[
+  {
+    "ingredient_id": "ing_01",
+    "effect": "param_03 = 1 and param_02 += 2",
+    "shifted_effect": "param_03 = 1 and param_01 += 2",
+    "name": "Luk"
+  },
+  {
+    "ingredient_id": "ing_02",
+    "effect": "param_01 += 1 and param_02 += 1",
+    "shifted_effect": "param_03 += 2",
+    "name": "Ananas"
+  },
+  {
+    "ingredient_id": "ing_03",
+    "effect": "if param_02 = 0 then param_01 += 1 and param_02 += 1 else param_03 += 2",
+    "shifted_effect": "if param_02 = 0 then param_03 += 2 else param_01 += 1 and param_02 += 1",
+    "name": "Kartoha"
+  },
+  {
+    "ingredient_id": "ing_04",
+    "effect": "if param_01 = 0 then param_01 += 2 else param_02 += 1 and param_03 += 1",
+    "shifted_effect": "if param_01 = 0 then param_02 += 1 and param_03 += 1 else param_01 += 2",
+    "name": "Mimosa"
+  },
+  {
+    "ingredient_id": "ing_05",
+    "effect": "the next ingredient added has no effect on param_02 and param_03",
+    "shifted_effect": "the next ingredient added has no effect on param_01",
+    "name": "Kley"
+  },
+  {
+    "ingredient_id": "ing_06",
+    "effect": "param_01 = 2 and param_03 += 2",
+    "shifted_effect": "param_01 = 2 and param_02 = 2",
+    "name": "Vetka"
+  }
+]

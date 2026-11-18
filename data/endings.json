@@ -1,0 +1,12 @@
+[
+  {
+    "ending_id": "end_01",
+    "name": "Good Ending",
+    "requirements": "Total Gold Coins ≥ Rent (see GDD 9.1)"
+  },
+  {
+    "ending_id": "end_02",
+    "name": "Bad Ending",
+    "requirements": "Total Gold Coins < Rent (see GDD 9.2)"
+  }
+]
