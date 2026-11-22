@@ -13,6 +13,8 @@ extends Control
 ## Brewing controls (T8, decision D4): click an Ingredient to pick it up (it follows the
 ## cursor), then click the Brewing Station to add it. Right-click, Esc, clicking the held
 ## Ingredient again or clicking empty space puts it back. Empty resets the Brew.
+## Clients (T9): every waiting Client is in the row; clicking one selects it in DayState and
+## shows its Request. Switching Clients keeps the Brew (GDD 4.2).
 ## Not wired yet: Serve and the Day end (T10) and placing on the Shifter (T11).
 
 const ART_DIR := "res://assets/art/"
@@ -36,9 +38,6 @@ const DOC_REFERENCE := "\\s*\\(see GDD [^)]*\\)"
 
 var day_state: DayState
 
-## The Request whose Client is selected and shown in the speech bubble. UI state only:
-## switching Clients changes nothing in the Brew (GDD 4.2).
-var _selected_request_id := ""
 var _client_group := ButtonGroup.new()
 ## request_id -> its Client's Button in the Client row.
 var _client_buttons: Dictionary[String, Button] = {}
@@ -173,7 +172,7 @@ func _build_client_row() -> void:
 		var box: VBoxContainer = card.get_meta("content")
 		box.add_child(_make_art(_character_art_file(character_id), CLIENT_ART_SIZE))
 		box.add_child(_centered_label(character.get("name", character_id)))
-		button.pressed.connect(_select_client.bind(request_id))
+		button.pressed.connect(_on_client_pressed.bind(request_id))
 
 		_client_row.add_child(card)
 		_client_buttons[request_id] = button
@@ -186,11 +185,8 @@ func _refresh() -> void:
 	_requests_left_label.text = "Requests left: %d" % day_state.requests_left()
 	_coins_label.text = "Gold Coins: %d" % day_state.coins
 
-	var waiting := day_state.waiting_requests()
-	if waiting != _client_row_ids:
+	if day_state.waiting_requests() != _client_row_ids:
 		_build_client_row()
-	if not waiting.has(_selected_request_id):
-		_selected_request_id = waiting[0] if not waiting.is_empty() else ""
 	_refresh_client_selection()
 	_refresh_ingredients()
 	_refresh_shifter()
@@ -209,18 +205,19 @@ func _refresh_brew() -> void:
 
 
 func _refresh_client_selection() -> void:
+	var current := day_state.current_request()
 	for request_id: String in _client_buttons:
-		_client_buttons[request_id].set_pressed_no_signal(request_id == _selected_request_id)
+		_client_buttons[request_id].set_pressed_no_signal(request_id == current)
 
-	if _selected_request_id.is_empty():
+	if current.is_empty():
 		_speaker_label.text = ""
 		_request_label.text = ""
 		_additional_rules_label.text = ""
 		return
-	var request: Dictionary = GameData.row("requests", _selected_request_id)
+	var request: Dictionary = GameData.row("requests", current)
 	var character: Dictionary = GameData.row("characters", request.get("character_id", ""))
 	_speaker_label.text = "%s says:" % character.get("name", request.get("character_id", ""))
-	_request_label.text = _request_text(request)
+	_request_label.text = RequestText.describe(request, _parameter_rows)
 	var rule := str(request.get("additional_rule", ""))
 	_additional_rules_label.text = "Additional Rules: %s" % (rule if not rule.is_empty() else "none")
 
@@ -245,9 +242,9 @@ func _refresh_shifter() -> void:
 	_shifter_panel.modulate = Color(1, 1, 1, 0.35) if used else Color.WHITE
 
 
-func _select_client(request_id: String) -> void:
-	_selected_request_id = request_id
-	_refresh_client_selection()
+## Selecting a Client emits DayState.changed, which redraws the speech bubble.
+func _on_client_pressed(request_id: String) -> void:
+	day_state.select_request(request_id)
 
 
 # --- Brewing controls (T8) -------------------------------------------------------------
@@ -377,21 +374,7 @@ func _ingredient_name(id: String) -> String:
 
 
 func _state_name(parameter_row: Dictionary, state: int) -> String:
-	return parameter_row.get("state_%d_name" % state, "State %d" % state)
-
-
-## The Request's own text from the Data Sheet. While that is empty (decision D7), a
-## generated Specific text lists the target States, marked as a placeholder.
-func _request_text(request: Dictionary) -> String:
-	var text := str(request.get("text", ""))
-	if not text.is_empty():
-		return text
-	var parts: PackedStringArray = []
-	for row: Dictionary in _parameter_rows:
-		var target: Variant = request.get("%s_target" % row["parameter_id"])
-		if target != null:
-			parts.append("%s = %s" % [row.get("name", row["parameter_id"]), _state_name(row, int(target))])
-	return "[placeholder] I need: %s" % ", ".join(parts)
+	return RequestText.state_name(parameter_row, state)
 
 
 ## A clickable card: a Button drawn behind a VBox of content. The MarginContainer gives both

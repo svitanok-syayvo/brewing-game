@@ -7,8 +7,8 @@ extends RefCounted
 ## Pure logic with no Node dependencies, so tests can run it headless. Views read it and
 ## redraw on `changed` (and on `brew.changed`); they hold no rules of their own.
 ##
-## Actions so far: add_ingredient() and empty_brew() (T8). The Shifter (T11) and Serve
-## (T10) are still to come.
+## Actions so far: add_ingredient() and empty_brew() (T8), select_request() (T9). The
+## Shifter (T11) and Serve (T10) are still to come.
 
 ## Emitted after anything this DayState holds has changed (not the Brew: see brew.changed).
 signal changed
@@ -43,6 +43,9 @@ var _supply: Dictionary[String, int] = {}
 var _shifted: Dictionary[String, bool] = {}
 ## Request IDs not yet served today, in Data Sheet order.
 var _waiting: Array[String] = []
+## The Request of the Client the player is talking to, or "" when none is waiting. Serve
+## (T10) resolves this one. Switching it never touches the Brew (GDD 4.2, 6.1).
+var _current_request := ""
 
 
 ## Rows come from GameData: rows("parameters"), rows("ingredients"), rows("supply"),
@@ -83,6 +86,7 @@ func start_day(n: int) -> void:
 			_waiting.append(row["request_id"])
 	if _waiting.is_empty():
 		push_error("DayState: Day %d has no Requests in the Data Sheet" % n)
+	_current_request = _waiting[0] if not _waiting.is_empty() else ""
 
 	brew.reset()
 	changed.emit()
@@ -108,6 +112,25 @@ func waiting_requests() -> Array[String]:
 
 func requests_left() -> int:
 	return _waiting.size()
+
+
+## The Request of the selected Client, or "" when no Client is waiting.
+func current_request() -> String:
+	return _current_request
+
+
+## Switches to another waiting Client (GDD 6.1: all Clients are present at once and can be
+## served in any order). Only the selection changes: the Brew, its pending ing_05 modifier,
+## the supply and the Forms stay as they are (GDD 4.2). Returns false, and changes nothing,
+## for a Request that is not waiting today.
+func select_request(request_id: String) -> bool:
+	if not _waiting.has(request_id):
+		push_error("DayState: Request '%s' is not waiting today" % request_id)
+		return false
+	if request_id != _current_request:
+		_current_request = request_id
+		changed.emit()
+	return true
 
 
 ## Adds one unit of an Ingredient, in its current Form, to the Brew (GDD 4.3, 5.1–5.4).
