@@ -10,8 +10,10 @@ extends Control
 ## Art: each picture slot loads res://assets/art/<Asset List file name> if Corgil has
 ## delivered it, and otherwise shows a grey box labelled with that file name.
 ##
-## Not wired yet: picking up and adding Ingredients, Empty (T8), Serve and the Day end
-## (T10) and the Shifter (T11). Clicking a Client already selects whose Request is shown.
+## Brewing controls (T8, decision D4): click an Ingredient to pick it up (it follows the
+## cursor), then click the Brewing Station to add it. Right-click, Esc, clicking the held
+## Ingredient again or clicking empty space puts it back. Empty resets the Brew.
+## Not wired yet: Serve and the Day end (T10) and placing on the Shifter (T11).
 
 const ART_DIR := "res://assets/art/"
 const PLACEHOLDER_COLOR := Color(0.38, 0.38, 0.40)
@@ -23,6 +25,11 @@ const STATION_ART_SIZE := Vector2(180, 110)
 const PARAMETER_ART_SIZE := Vector2(28, 28)
 const SHIFTER_ART_SIZE := Vector2(110, 110)
 const COIN_ART_SIZE := Vector2(20, 20)
+const HELD_ART_SIZE := Vector2(56, 56)
+## Where the held Ingredient sits relative to the cursor, so it does not hide the target.
+const HELD_OFFSET := Vector2(14, 14)
+const BLOCKED_FLASH_COLOR := Color(1.0, 0.45, 0.4)
+const FEEDBACK_SECONDS := 2.5
 ## The Data Sheet's Shifter effect ends with a design-doc pointer such as "(see GDD 5.3)",
 ## which is not meant for players.
 const DOC_REFERENCE := "\\s*\\(see GDD [^)]*\\)"
@@ -42,6 +49,12 @@ var _ingredient_views: Dictionary[String, Dictionary] = {}
 ## One {"art", "label"} per Parameter, in Parameter order (index 0 is param_01).
 var _parameter_views: Array[Dictionary] = []
 var _parameter_rows: Array = []
+## The Ingredient picked up and following the cursor, or "" if nothing is held. UI state
+## only: nothing in DayState changes until it is placed.
+var _held_id := ""
+var _held_view: Control
+## Bumped on every new feedback message, so an old timer does not clear a newer one.
+var _feedback_serial := 0
 
 @onready var _day_label: Label = %DayLabel
 @onready var _requests_left_label: Label = %RequestsLeftLabel
@@ -55,6 +68,9 @@ var _parameter_rows: Array = []
 @onready var _station_art: CenterContainer = %StationArt
 @onready var _parameter_list: VBoxContainer = %ParameterList
 @onready var _ingredient_count_label: Label = %IngredientCountLabel
+@onready var _feedback_label: Label = %FeedbackLabel
+@onready var _station_panel: PanelContainer = %StationPanel
+@onready var _empty_button: Button = %EmptyButton
 @onready var _shifter_panel: PanelContainer = %ShifterPanel
 @onready var _shifter_title: Label = %ShifterTitle
 @onready var _shifter_art: CenterContainer = %ShifterArt
@@ -75,6 +91,11 @@ func _ready() -> void:
 	_build_parameters()
 	_build_ingredient_tray()
 	_build_shifter_text()
+
+	_station_panel.gui_input.connect(_on_station_input)
+	_shifter_panel.gui_input.connect(_on_shifter_input)
+	_empty_button.pressed.connect(_on_empty_pressed)
+	_feedback_label.text = ""
 
 	day_state.changed.connect(_refresh)
 	day_state.brew.changed.connect(_refresh_brew)
@@ -117,6 +138,7 @@ func _build_ingredient_tray() -> void:
 		for child: Control in [art_slot, name_label, form_label, count_label]:
 			box.add_child(child)
 
+		(card.get_meta("button") as Button).pressed.connect(_on_ingredient_pressed.bind(id))
 		_ingredient_tray.add_child(card)
 		_ingredient_views[id] = {"card": card, "art": art_slot, "form": form_label, "count": count_label}
 
@@ -228,7 +250,131 @@ func _select_client(request_id: String) -> void:
 	_refresh_client_selection()
 
 
+# --- Brewing controls (T8) -------------------------------------------------------------
+
+func _on_ingredient_pressed(id: String) -> void:
+	if _held_id == id:
+		_drop_held()
+		return
+	if day_state.supply_of(id) <= 0:
+		_drop_held()
+		_show_blocked("No %s left today." % _ingredient_name(id), _ingredient_views[id]["card"].get_meta("button"))
+		return
+	_pick_up(id)
+
+
+func _on_station_input(event: InputEvent) -> void:
+	if not _is_left_click(event) or _held_id.is_empty():
+		return
+	accept_event()
+	var id := _held_id
+	match day_state.add_ingredient(id):
+		DayState.AddResult.ADDED:
+			# No "added X" message: the game deliberately keeps no list of what went in
+			# (GDD 4.3, playtest question 11.3 Q2).
+			_clear_feedback()
+			_drop_held()
+		DayState.AddResult.NONE_LEFT:
+			_drop_held()
+			_show_blocked("No %s left today." % _ingredient_name(id), _station_panel)
+		DayState.AddResult.BREW_FULL:
+			_drop_held()
+			_show_blocked("The Brewing Station is full: %d / %d Ingredients." % [Brew.MAX_INGREDIENTS, Brew.MAX_INGREDIENTS], _station_panel)
+		_:
+			_drop_held()
+
+
+## T11 places the held Ingredient on the Shifter. Until then the click only keeps it from
+## counting as a click on empty space, so the Ingredient stays in hand.
+func _on_shifter_input(event: InputEvent) -> void:
+	if _is_left_click(event) and not _held_id.is_empty():
+		accept_event()
+
+
+func _on_empty_pressed() -> void:
+	_drop_held()
+	_clear_feedback()
+	day_state.empty_brew()
+
+
+## A left click that reaches the root Control landed on empty space: put the Ingredient back.
+func _gui_input(event: InputEvent) -> void:
+	if _is_left_click(event) and not _held_id.is_empty():
+		accept_event()
+		_drop_held()
+
+
+## The held Ingredient follows the cursor. Right-click and Esc cancel from anywhere,
+## even over a Button.
+func _input(event: InputEvent) -> void:
+	if _held_id.is_empty():
+		return
+	if event is InputEventMouseMotion:
+		_held_view.global_position = (event as InputEventMouseMotion).position + HELD_OFFSET
+		return
+	var right_click: bool = event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT
+	if right_click or event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_drop_held()
+
+
+func _pick_up(id: String) -> void:
+	_drop_held()
+	_held_id = id
+	var shifted := day_state.is_shifted(id)
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.top_level = true
+	box.z_index = 100
+	var art := _make_art("%s_shifted.png" % id if shifted else "%s.png" % id, HELD_ART_SIZE, false, shifted)
+	art.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(art)
+	box.add_child(_centered_label("%s (%s)" % [_ingredient_name(id), "Shifted" if shifted else "Normal"]))
+	add_child(box)
+	_held_view = box
+	_held_view.global_position = get_global_mouse_position() + HELD_OFFSET
+	(_ingredient_views[id]["card"].get_meta("button") as Button).modulate = Color(1, 1, 0.6)
+
+
+func _drop_held() -> void:
+	if _held_id.is_empty():
+		return
+	(_ingredient_views[_held_id]["card"].get_meta("button") as Button).modulate = Color.WHITE
+	_held_id = ""
+	if _held_view != null:
+		_held_view.queue_free()
+		_held_view = null
+
+
+## A blocked action changes nothing, so it only flashes the target and shows a short line
+## (sfx_error is a Should Have, GDD 1.7).
+func _show_blocked(message: String, target: CanvasItem) -> void:
+	print("Blocked: %s" % message)
+	_feedback_serial += 1
+	var serial := _feedback_serial
+	_feedback_label.text = message
+	target.self_modulate = BLOCKED_FLASH_COLOR
+	var tween := create_tween()
+	tween.tween_property(target, "self_modulate", Color.WHITE, 0.4)
+	await get_tree().create_timer(FEEDBACK_SECONDS).timeout
+	if serial == _feedback_serial:
+		_feedback_label.text = ""
+
+
+func _clear_feedback() -> void:
+	_feedback_serial += 1
+	_feedback_label.text = ""
+
+
+func _is_left_click(event: InputEvent) -> bool:
+	return event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT
+
+
 # --- Text helpers -----------------------------------------------------------------------
+
+func _ingredient_name(id: String) -> String:
+	return GameData.row("ingredients", id).get("name", id)
+
 
 func _state_name(parameter_row: Dictionary, state: int) -> String:
 	return parameter_row.get("state_%d_name" % state, "State %d" % state)

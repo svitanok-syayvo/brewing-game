@@ -7,11 +7,22 @@ extends RefCounted
 ## Pure logic with no Node dependencies, so tests can run it headless. Views read it and
 ## redraw on `changed` (and on `brew.changed`); they hold no rules of their own.
 ##
-## T7 only needs the state the main screen shows. The actions that change it (adding an
-## Ingredient, Empty, the Shifter, Serve) arrive with T8, T10 and T11.
+## Actions so far: add_ingredient() and empty_brew() (T8). The Shifter (T11) and Serve
+## (T10) are still to come.
 
 ## Emitted after anything this DayState holds has changed (not the Brew: see brew.changed).
 signal changed
+
+## What add_ingredient() did. Anything but ADDED means nothing changed.
+enum AddResult {
+	ADDED,
+	## The Ingredient has 0 left today (GDD 5.4).
+	NONE_LEFT,
+	## The Brewing Station already holds 3 Ingredients (GDD 4.3).
+	BREW_FULL,
+	## The ID is not an Ingredient in the Data Sheet.
+	UNKNOWN,
+}
 
 var day := 0
 var brew: Brew
@@ -23,6 +34,7 @@ var results: Dictionary[String, bool] = {}
 
 ## Ingredient IDs in Data Sheet order, so the tray always shows them in the same order.
 var _ingredient_ids: Array[String] = []
+var _effects: IngredientEffects
 var _supply_rows: Array = []
 var _request_rows: Array = []
 ## ingredient_id -> units left today.
@@ -37,6 +49,7 @@ var _waiting: Array[String] = []
 ## rows("requests"). Call start_day() before reading anything.
 func _init(parameter_rows: Array, ingredient_rows: Array, supply_rows: Array, request_rows: Array) -> void:
 	brew = Brew.new(parameter_rows.size())
+	_effects = IngredientEffects.new(ingredient_rows, parameter_rows)
 	for row: Dictionary in ingredient_rows:
 		_ingredient_ids.append(row["ingredient_id"])
 	_supply_rows = supply_rows
@@ -95,3 +108,31 @@ func waiting_requests() -> Array[String]:
 
 func requests_left() -> int:
 	return _waiting.size()
+
+
+## Adds one unit of an Ingredient, in its current Form, to the Brew (GDD 4.3, 5.1–5.4).
+## On success it uses up one unit of supply and one of the Brewing Station's 3 slots, and
+## a Shifted Ingredient goes back to Normal, because a shift lasts for 1 use (GDD 5.3, D3).
+## A blocked add changes nothing and emits nothing; the view decides how to show it.
+func add_ingredient(ingredient_id: String) -> AddResult:
+	if not _supply.has(ingredient_id) or not _effects.has_ingredient(ingredient_id):
+		push_error("DayState: unknown Ingredient '%s'" % ingredient_id)
+		return AddResult.UNKNOWN
+	if _supply[ingredient_id] <= 0:
+		return AddResult.NONE_LEFT
+	# Take the slot first: count_ingredient() refuses a full Brew without changing it.
+	if not brew.count_ingredient():
+		return AddResult.BREW_FULL
+
+	_effects.apply(brew, ingredient_id, _shifted[ingredient_id])
+	_supply[ingredient_id] -= 1
+	_shifted[ingredient_id] = false
+	changed.emit()
+	return AddResult.ADDED
+
+
+## Empty (GDD 4.4): the Brew goes back to State 0 on every Parameter with no Ingredients
+## and no pending modifier. The Ingredients already added are lost: supply is not
+## refunded, and the Forms of the Ingredients still in the tray do not change.
+func empty_brew() -> void:
+	brew.reset()
