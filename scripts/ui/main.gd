@@ -17,7 +17,7 @@ extends Control
 ## shows its Request. Switching Clients keeps the Brew (GDD 4.2).
 ## Serve (T10): resolves the selected Client's Request, shows 'Success' or 'Failure' and the
 ## Gold Coins gained, and the Client leaves. After the last Client the Day is over: Serve
-## and Empty are disabled until the Day Consequences screen (T12) takes over.
+## and Empty are disabled, and the Day Consequences screen (T12) covers the shop.
 ## Shifter (T11, GDD 5.3): place a held Ingredient on the Shifter to switch its Form. This
 ## spends the Shifter's 1 use for the Day; the Ingredient stays in hand, now showing its new
 ## Form, so it can go straight to the Brewing Station or back to the tray.
@@ -42,6 +42,7 @@ const FAILURE_COLOR := Color(1.0, 0.55, 0.5)
 ## The Data Sheet's Shifter effect ends with a design-doc pointer such as "(see GDD 5.3)",
 ## which is not meant for players.
 const DOC_REFERENCE := "\\s*\\(see GDD [^)]*\\)"
+const CONSEQUENCES_SCENE := preload("res://scenes/ui/day_consequences.tscn")
 
 var day_state: DayState
 
@@ -352,11 +353,21 @@ func _on_serve_pressed() -> void:
 	print("Served %s: %s, +%d Gold Coins" % [result["request_id"], "Success" if success else "Failure", coins])
 
 
-## Every Client has been served. T12 replaces this with the Day Consequences screen; for
-## now the shop stays on screen with Serve and Empty disabled (see _refresh()).
+## Every Client has been served: the Day Consequences screen (T12) covers the shop. The
+## shop stays underneath with Serve and Empty disabled (see _refresh()).
 func _on_day_ended() -> void:
 	_drop_held()
 	print("Day %d ended: %d Gold Coins, results %s" % [day_state.day, day_state.coins, day_state.results])
+	var screen: DayConsequences = CONSEQUENCES_SCENE.instantiate()
+	add_child(screen)
+	screen.show_day(day_state)
+	screen.restart_requested.connect(_on_restart_requested)
+
+
+## Restart (D9): reloading the scene builds a new DayState, so the game starts again at
+## Day 1 with 0 Gold Coins. GameData is an autoload and keeps its loaded tables.
+func _on_restart_requested() -> void:
+	get_tree().reload_current_scene()
 
 
 ## A left click that reaches the root Control landed on empty space: put the Ingredient back.
