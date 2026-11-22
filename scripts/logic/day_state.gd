@@ -124,6 +124,12 @@ func is_shifted(ingredient_id: String) -> bool:
 	return _shifted.get(ingredient_id, false)
 
 
+## The parsed effect of one Form of an Ingredient (read-only, for tooltips, T13), or null
+## for an unknown ID.
+func get_effect(ingredient_id: String, shifted: bool) -> IngredientEffect:
+	return _effects.get_effect(ingredient_id, shifted)
+
+
 ## Request IDs still waiting to be served today, in Data Sheet order.
 func waiting_requests() -> Array[String]:
 	return _waiting.duplicate()

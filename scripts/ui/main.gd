@@ -21,6 +21,9 @@ extends Control
 ## Shifter (T11, GDD 5.3): place a held Ingredient on the Shifter to switch its Form. This
 ## spends the Shifter's 1 use for the Day; the Ingredient stays in hand, now showing its new
 ## Form, so it can go straight to the Brewing Station or back to the tray.
+## Tooltips (T13, GDD 8.2): hovering an Ingredient shows the effect of its current Form only
+## (Config.SHOW_SHIFTED_IN_TOOLTIP, D6). Each Parameter, the Shifter, Serve and Empty explain
+## themselves too. The texts come from TooltipText.
 
 const ART_DIR := "res://assets/art/"
 const PLACEHOLDER_COLOR := Color(0.38, 0.38, 0.40)
@@ -43,6 +46,10 @@ const FAILURE_COLOR := Color(1.0, 0.55, 0.5)
 ## which is not meant for players.
 const DOC_REFERENCE := "\\s*\\(see GDD [^)]*\\)"
 const CONSEQUENCES_SCENE := preload("res://scenes/ui/day_consequences.tscn")
+## The default tooltip panel is see-through, which makes long effect texts hard to read
+## over the shop. Grey-box styling only; Corgil decides the final look.
+const TOOLTIP_BG_COLOR := Color(0.08, 0.08, 0.09)
+const TOOLTIP_BORDER_COLOR := Color(0.5, 0.5, 0.55)
 
 var day_state: DayState
 
@@ -56,6 +63,8 @@ var _ingredient_views: Dictionary[String, Dictionary] = {}
 ## One {"art", "label"} per Parameter, in Parameter order (index 0 is param_01).
 var _parameter_views: Array[Dictionary] = []
 var _parameter_rows: Array = []
+## The Shifter's Data Sheet row (tools.json), for its tooltip.
+var _shifter_row: Dictionary = {}
 ## The Ingredient picked up and following the cursor, or "" if nothing is held. UI state
 ## only: nothing in DayState changes until it is placed.
 var _held_id := ""
@@ -96,6 +105,7 @@ func _ready() -> void:
 		GameData.rows("requests"),
 	)
 
+	_build_tooltip_theme()
 	_build_static_art()
 	_build_parameters()
 	_build_ingredient_tray()
@@ -105,6 +115,8 @@ func _ready() -> void:
 	_shifter_panel.gui_input.connect(_on_shifter_input)
 	_serve_button.pressed.connect(_on_serve_pressed)
 	_empty_button.pressed.connect(_on_empty_pressed)
+	_serve_button.tooltip_text = TooltipText.serve()
+	_empty_button.tooltip_text = TooltipText.empty(_parameter_rows)
 	_feedback_label.text = ""
 	_resolution_label.text = ""
 
@@ -118,6 +130,18 @@ func _ready() -> void:
 
 # --- Building (once) -------------------------------------------------------------------
 
+func _build_tooltip_theme() -> void:
+	var panel := StyleBoxFlat.new()
+	panel.bg_color = TOOLTIP_BG_COLOR
+	panel.border_color = TOOLTIP_BORDER_COLOR
+	panel.set_border_width_all(1)
+	panel.set_corner_radius_all(4)
+	panel.set_content_margin_all(8)
+	if theme == null:
+		theme = Theme.new()
+	theme.set_stylebox("panel", "TooltipPanel", panel)
+
+
 func _build_static_art() -> void:
 	_station_art.add_child(_make_art("brewing_station.png", STATION_ART_SIZE))
 	_coin_box.add_child(_make_art("coin.png", COIN_ART_SIZE, false))
@@ -127,7 +151,10 @@ func _build_static_art() -> void:
 func _build_parameters() -> void:
 	for p: int in _parameter_rows.size():
 		var row: HBoxContainer = HBoxContainer.new()
-		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# PASS, not IGNORE: the row shows its tooltip, and a click still reaches the Brewing
+		# Station behind it so a held Ingredient can be added here.
+		row.mouse_filter = Control.MOUSE_FILTER_PASS
+		row.tooltip_text = TooltipText.parameter(_parameter_rows[p])
 		row.add_theme_constant_override("separation", 8)
 		var art_slot := CenterContainer.new()
 		art_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -162,6 +189,7 @@ func _build_shifter_text() -> void:
 	if tools.is_empty():
 		return
 	var shifter: Dictionary = tools[0]
+	_shifter_row = shifter
 	_shifter_title.text = shifter.get("name", "tool_01")
 	var regex := RegEx.create_from_string(DOC_REFERENCE)
 	_shifter_effect_label.text = regex.sub(str(shifter.get("effect", "")), "", true)
@@ -248,6 +276,10 @@ func _refresh_ingredients() -> void:
 		_replace_art(view["art"], "%s_shifted.png" % id if shifted else "%s.png" % id, INGREDIENT_ART_SIZE, shifted)
 		(view["form"] as Label).text = "Shifted" if shifted else "Normal"
 		(view["count"] as Label).text = "× %d" % left
+		(view["card"].get_meta("button") as Button).tooltip_text = TooltipText.ingredient(
+			GameData.row("ingredients", id), shifted,
+			day_state.get_effect(id, shifted), day_state.get_effect(id, not shifted),
+			_parameter_rows, Config.SHOW_SHIFTED_IN_TOOLTIP)
 		# Dimmed, not disabled: T8 still needs the click to give "none left" feedback.
 		(view["card"] as Control).modulate.a = 1.0 if left > 0 else 0.4
 
@@ -256,6 +288,7 @@ func _refresh_shifter() -> void:
 	var used := day_state.shifter_used
 	_replace_art(_shifter_art, "tool_01_drained.png" if used else "tool_01.png", SHIFTER_ART_SIZE)
 	_shifter_status_label.text = "Used today" if used else "1 use left today"
+	_shifter_panel.tooltip_text = TooltipText.shifter(_shifter_row, used)
 	# GDD 5.3: once spent, the Shifter must look clearly unusable for the rest of the Day.
 	_shifter_panel.modulate = Color(1, 1, 1, 0.35) if used else Color.WHITE
 
