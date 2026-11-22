@@ -7,8 +7,8 @@ extends RefCounted
 ## Pure logic with no Node dependencies, so tests can run it headless. Views read it and
 ## redraw on `changed` (and on `brew.changed`); they hold no rules of their own.
 ##
-## Actions so far: add_ingredient() and empty_brew() (T8), select_request() (T9) and
-## serve() (T10). The Shifter (T11) is still to come.
+## Actions: add_ingredient() and empty_brew() (T8), select_request() (T9), serve() (T10)
+## and shift() (T11).
 
 ## Emitted after anything this DayState holds has changed (not the Brew: see brew.changed).
 signal changed
@@ -23,6 +23,17 @@ enum AddResult {
 	NONE_LEFT,
 	## The Brewing Station already holds 3 Ingredients (GDD 4.3).
 	BREW_FULL,
+	## The ID is not an Ingredient in the Data Sheet.
+	UNKNOWN,
+}
+
+## What shift() did. Anything but SHIFTED means nothing changed.
+enum ShiftResult {
+	SHIFTED,
+	## The Shifter's 1 use today is already spent (GDD 5.3).
+	SHIFTER_USED,
+	## The Ingredient has 0 left today, so there is nothing to shift (D5).
+	NONE_LEFT,
 	## The ID is not an Ingredient in the Data Sheet.
 	UNKNOWN,
 }
@@ -165,6 +176,26 @@ func add_ingredient(ingredient_id: String) -> AddResult:
 	_shifted[ingredient_id] = false
 	changed.emit()
 	return AddResult.ADDED
+
+
+## The Shifter (GDD 5.3): switches an Ingredient between its Normal and Shifted Form and
+## spends the Shifter's 1 use for the Day. The use is spent now, even if the Ingredient is
+## never added. The Form belongs to the Ingredient's stack, and the next unit added uses it
+## and goes back to Normal (D3, see add_ingredient()). The Brew is not touched.
+## Blocked, with no change and no signal, once the Shifter is used or when the Ingredient
+## has 0 left (D5). Checks run in that order, so a used Shifter is reported first.
+func shift(ingredient_id: String) -> ShiftResult:
+	if not _supply.has(ingredient_id):
+		push_error("DayState: unknown Ingredient '%s'" % ingredient_id)
+		return ShiftResult.UNKNOWN
+	if shifter_used:
+		return ShiftResult.SHIFTER_USED
+	if _supply[ingredient_id] <= 0:
+		return ShiftResult.NONE_LEFT
+	_shifted[ingredient_id] = not _shifted[ingredient_id]
+	shifter_used = true
+	changed.emit()
+	return ShiftResult.SHIFTED
 
 
 ## Empty (GDD 4.4): the Brew goes back to State 0 on every Parameter with no Ingredients

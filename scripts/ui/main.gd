@@ -18,7 +18,9 @@ extends Control
 ## Serve (T10): resolves the selected Client's Request, shows 'Success' or 'Failure' and the
 ## Gold Coins gained, and the Client leaves. After the last Client the Day is over: Serve
 ## and Empty are disabled until the Day Consequences screen (T12) takes over.
-## Not wired yet: placing on the Shifter (T11).
+## Shifter (T11, GDD 5.3): place a held Ingredient on the Shifter to switch its Form. This
+## spends the Shifter's 1 use for the Day; the Ingredient stays in hand, now showing its new
+## Form, so it can go straight to the Brewing Station or back to the tray.
 
 const ART_DIR := "res://assets/art/"
 const PLACEHOLDER_COLOR := Color(0.38, 0.38, 0.40)
@@ -297,11 +299,28 @@ func _on_station_input(event: InputEvent) -> void:
 			_drop_held()
 
 
-## T11 places the held Ingredient on the Shifter. Until then the click only keeps it from
-## counting as a click on empty space, so the Ingredient stays in hand.
+## Placing the held Ingredient on the Shifter (T11). A click with nothing in hand does
+## nothing. A blocked shift keeps the Ingredient in hand, so the player can still add it.
 func _on_shifter_input(event: InputEvent) -> void:
-	if _is_left_click(event) and not _held_id.is_empty():
-		accept_event()
+	if not _is_left_click(event) or _held_id.is_empty():
+		return
+	accept_event()
+	var id := _held_id
+	match day_state.shift(id):
+		DayState.ShiftResult.SHIFTED:
+			# Pick it up again so the copy under the cursor shows the new Form (GDD 5.1),
+			# at the same spot, so it does not jump.
+			_clear_feedback()
+			var held_position := _held_view.global_position
+			_pick_up(id)
+			_held_view.global_position = held_position
+		DayState.ShiftResult.SHIFTER_USED:
+			_show_blocked("The %s has already been used today." % _shifter_title.text, _shifter_panel)
+		DayState.ShiftResult.NONE_LEFT:
+			_drop_held()
+			_show_blocked("No %s left today." % _ingredient_name(id), _shifter_panel)
+		_:
+			_drop_held()
 
 
 func _on_empty_pressed() -> void:

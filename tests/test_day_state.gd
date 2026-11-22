@@ -1,6 +1,7 @@
 extends SceneTree
 ## Headless checks for DayState: start_day() (T7), add_ingredient() and empty_brew() (T8),
-## Client switching and the Request text (T9), Serve and the Day end (T10). Run:
+## Client switching and the Request text (T9), Serve and the Day end (T10), the Shifter
+## (T11). Run:
 ##   godot --headless --path . -s tests/test_day_state.gd
 ## Prints PASS or FAIL per check and exits with code 1 if any check failed.
 ##
@@ -58,6 +59,7 @@ func _initialize() -> void:
 	_test_clients(data)
 	_test_request_text(data)
 	_test_serve(data)
+	_test_shifter(data)
 
 	print("%s: %d failure(s)" % ["FAIL" if _failures > 0 else "PASS", _failures])
 	quit(1 if _failures > 0 else 0)
@@ -286,6 +288,69 @@ func _test_serve(data: Node) -> void:
 	_check("serve with no Client -> {}", state.serve().is_empty())
 	_check("refused serve keeps the coins and results", state.coins == coins_before + int(data.row("requests", last)["maximum_coins"]) and state.results.size() == _day_requests(data, 1).size())
 	_check("day_ended still emitted once", day_ended[0] == 1)
+
+
+## T11: the Shifter switches one Ingredient's Form once per Day, the use is spent even if
+## the Ingredient is never added, a blocked shift changes nothing, the Shifted Form is used
+## by the next add and then returns to Normal, and a new Day gives a fresh use.
+func _test_shifter(data: Node) -> void:
+	var state := DayState.new(data.rows("parameters"), data.rows("ingredients"), data.rows("supply"), data.rows("requests"))
+	state.start_day(1)
+	for id: String in state.ingredient_ids():
+		state._supply[id] = 1
+	state._supply["ing_02"] = 0
+
+	var emitted := [0]
+	state.changed.connect(func() -> void: emitted[0] += 1)
+
+	_check("shift with 0 left -> NONE_LEFT", state.shift("ing_02") == DayState.ShiftResult.NONE_LEFT)
+	_check("blocked shift keeps the Shifter unused", not state.shifter_used)
+	_check("blocked shift keeps the Form", not state.is_shifted("ing_02"))
+	_check("blocked shift emits nothing", emitted[0] == 0)
+	_check("unknown Ingredient -> UNKNOWN", state.shift("ing_99") == DayState.ShiftResult.UNKNOWN)
+	_check("unknown shift keeps the Shifter unused", not state.shifter_used)
+
+	state.brew.step(0, 1)
+	state.brew.count_ingredient()
+	var brew_before := state.brew.get_states()
+	_check("shift ing_06 -> SHIFTED", state.shift("ing_06") == DayState.ShiftResult.SHIFTED)
+	_check("ing_06 is Shifted", state.is_shifted("ing_06"))
+	_check("the Shifter is used", state.shifter_used)
+	_check("shift emits changed once", emitted[0] == 1)
+	_check("shift leaves the Brew alone", state.brew.get_states() == brew_before and state.brew.get_ingredient_count() == 1)
+	_check("shift uses no supply", state.supply_of("ing_06") == 1)
+	_check("other Ingredients stay Normal", not state.is_shifted("ing_01"))
+
+	_check("second shift -> SHIFTER_USED", state.shift("ing_01") == DayState.ShiftResult.SHIFTER_USED)
+	_check("second shift keeps ing_01 Normal", not state.is_shifted("ing_01"))
+	_check("shifting back -> SHIFTER_USED", state.shift("ing_06") == DayState.ShiftResult.SHIFTER_USED)
+	_check("ing_06 is still Shifted", state.is_shifted("ing_06"))
+	_check("blocked second shift emits nothing", emitted[0] == 1)
+
+	state.empty_brew()
+	_check("Empty keeps the Shifted Form", state.is_shifted("ing_06"))
+	_check("Empty does not refund the Shifter", state.shifter_used)
+	state.add_ingredient("ing_06")
+	_check("Shifted ing_06 effect applied: (2,2,0)", state.brew.get_states() == [2, 2, 0])
+	_check("ing_06 back to Normal after use", not state.is_shifted("ing_06"))
+	_check("the Shifter stays used after the add", state.shifter_used)
+
+	state.start_day(1)
+	_check("a new Day gives the Shifter back", not state.shifter_used)
+	var any_shifted := false
+	for id: String in state.ingredient_ids():
+		any_shifted = any_shifted or state.is_shifted(id)
+	_check("a new Day starts every Form Normal", not any_shifted)
+
+	# The use is spent even if the Shifted Ingredient is never added (GDD 5.3).
+	state._supply["ing_01"] = 1
+	state.shift("ing_01")
+	var requests := state.waiting_requests()
+	for request_id: String in requests:
+		state.serve()
+	_check("a never-added shift still spends the use", state.shifter_used)
+	_check("Day end puts Shifted Ingredients back to Normal", not state.is_shifted("ing_01"))
+	_check("shift after the Day -> SHIFTER_USED", state.shift("ing_03") == DayState.ShiftResult.SHIFTER_USED)
 
 
 ## Sets every requested Parameter to its target. A Parameter the Request does not name is
