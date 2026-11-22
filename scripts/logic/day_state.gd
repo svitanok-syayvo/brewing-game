@@ -46,6 +46,8 @@ var shifter_used := false
 ## request_id -> true for 'Success', false for 'Failure', in the order they were served.
 ## Filled by serve(); the Day Consequences screen (T12) reads it.
 var results: Dictionary[String, bool] = {}
+## A light record of the Day for the playtest (T14, GDD 11.3). Read-only for views.
+var playtest_log := PlaytestLog.new()
 
 ## Ingredient IDs in Data Sheet order, so the tray always shows them in the same order.
 var _ingredient_ids: Array[String] = []
@@ -108,6 +110,7 @@ func start_day(n: int) -> void:
 	_current_request = _waiting[0] if not _waiting.is_empty() else ""
 
 	brew.reset()
+	playtest_log.start_day(n)
 	changed.emit()
 
 
@@ -159,6 +162,7 @@ func select_request(request_id: String) -> bool:
 		return false
 	if request_id != _current_request:
 		_current_request = request_id
+		playtest_log.switched_client()
 		changed.emit()
 	return true
 
@@ -178,6 +182,7 @@ func add_ingredient(ingredient_id: String) -> AddResult:
 		return AddResult.BREW_FULL
 
 	_effects.apply(brew, ingredient_id, _shifted[ingredient_id])
+	playtest_log.added(ingredient_id, _shifted[ingredient_id])
 	_supply[ingredient_id] -= 1
 	_shifted[ingredient_id] = false
 	changed.emit()
@@ -200,6 +205,7 @@ func shift(ingredient_id: String) -> ShiftResult:
 		return ShiftResult.NONE_LEFT
 	_shifted[ingredient_id] = not _shifted[ingredient_id]
 	shifter_used = true
+	playtest_log.shifted(ingredient_id, _shifted[ingredient_id], _current_request)
 	changed.emit()
 	return ShiftResult.SHIFTED
 
@@ -208,6 +214,7 @@ func shift(ingredient_id: String) -> ShiftResult:
 ## and no pending modifier. The Ingredients already added are lost: supply is not
 ## refunded, and the Forms of the Ingredients still in the tray do not change.
 func empty_brew() -> void:
+	playtest_log.emptied()
 	brew.reset()
 
 
@@ -230,6 +237,7 @@ func serve() -> Dictionary:
 
 	coins += gained
 	results[request_id] = success
+	playtest_log.served(request_id, success, gained)
 	var index := _waiting.find(request_id)
 	_waiting.remove_at(index)
 	# The Client to the right takes the served one's place; after the last, the one before.
@@ -256,6 +264,7 @@ func is_success(request: Dictionary) -> bool:
 
 ## The Day is over (GDD 5.4, 7.1): unused Ingredients disappear and are worth nothing.
 func _end_day() -> void:
+	playtest_log.ended_day(_supply)
 	for id: String in _supply:
 		_supply[id] = 0
 		_shifted[id] = false

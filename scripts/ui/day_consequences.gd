@@ -6,6 +6,10 @@ extends Control
 ##
 ## First Playable has only Day 1, so the screen always ends with "End of First Playable"
 ## and a Restart button (decision D9). A view only: the text comes from ConsequenceText.
+##
+## Playtest log (T14): a second column shows DayState.playtest_log as read-only text that the
+## tester can select and copy (Cmd/Ctrl+A, Cmd/Ctrl+C) into docs/playtest_first_playable.md.
+## It is also printed to the console (the browser console in the web build).
 
 ## Restart was clicked. main.gd reloads the scene, which starts a new game at Day 1.
 signal restart_requested
@@ -17,6 +21,7 @@ const FAILURE_COLOR := Color(1.0, 0.55, 0.5)
 @onready var _entry_list: VBoxContainer = %EntryList
 @onready var _coins_label: Label = %CoinsLabel
 @onready var _restart_button: Button = %RestartButton
+@onready var _log_text: TextEdit = %LogText
 
 
 func _ready() -> void:
@@ -48,4 +53,7 @@ func show_day(day_state: DayState) -> void:
 		_entry_list.add_child(box)
 
 	_coins_label.text = "Gold Coins: %d" % day_state.coins
+	var log_text := day_state.playtest_log.format(GameData.rows("ingredients"), GameData.rows("requests"), GameData.rows("characters"))
+	_log_text.text = log_text
+	print(log_text)
 	_restart_button.grab_focus()
