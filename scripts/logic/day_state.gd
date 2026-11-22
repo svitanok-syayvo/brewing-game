@@ -7,11 +7,14 @@ extends RefCounted
 ## Pure logic with no Node dependencies, so tests can run it headless. Views read it and
 ## redraw on `changed` (and on `brew.changed`); they hold no rules of their own.
 ##
-## Actions so far: add_ingredient() and empty_brew() (T8), select_request() (T9). The
-## Shifter (T11) and Serve (T10) are still to come.
+## Actions so far: add_ingredient() and empty_brew() (T8), select_request() (T9) and
+## serve() (T10). The Shifter (T11) is still to come.
 
 ## Emitted after anything this DayState holds has changed (not the Brew: see brew.changed).
 signal changed
+## Emitted once, after the last waiting Request of the Day has been served (GDD 7.1).
+## `results` then holds the Resolution of every Request of the Day.
+signal day_ended
 
 ## What add_ingredient() did. Anything but ADDED means nothing changed.
 enum AddResult {
@@ -29,12 +32,15 @@ var brew: Brew
 ## Gold Coins earned so far. They carry over between Days, so start_day() keeps them.
 var coins := 0
 var shifter_used := false
-## request_id -> true for 'Success', false for 'Failure'. Filled by Serve (T10).
+## request_id -> true for 'Success', false for 'Failure', in the order they were served.
+## Filled by serve(); the Day Consequences screen (T12) reads it.
 var results: Dictionary[String, bool] = {}
 
 ## Ingredient IDs in Data Sheet order, so the tray always shows them in the same order.
 var _ingredient_ids: Array[String] = []
 var _effects: IngredientEffects
+## Parameter IDs in Data Sheet order, so index p of the Brew is _parameter_ids[p].
+var _parameter_ids: Array[String] = []
 var _supply_rows: Array = []
 var _request_rows: Array = []
 ## ingredient_id -> units left today.
@@ -53,6 +59,8 @@ var _current_request := ""
 func _init(parameter_rows: Array, ingredient_rows: Array, supply_rows: Array, request_rows: Array) -> void:
 	brew = Brew.new(parameter_rows.size())
 	_effects = IngredientEffects.new(ingredient_rows, parameter_rows)
+	for row: Dictionary in parameter_rows:
+		_parameter_ids.append(row["parameter_id"])
 	for row: Dictionary in ingredient_rows:
 		_ingredient_ids.append(row["ingredient_id"])
 	_supply_rows = supply_rows
@@ -114,6 +122,11 @@ func requests_left() -> int:
 	return _waiting.size()
 
 
+## True once every Client of the Day has been served (GDD 7.1).
+func is_day_over() -> bool:
+	return day > 0 and _waiting.is_empty()
+
+
 ## The Request of the selected Client, or "" when no Client is waiting.
 func current_request() -> String:
 	return _current_request
@@ -159,3 +172,60 @@ func add_ingredient(ingredient_id: String) -> AddResult:
 ## refunded, and the Forms of the Ingredients still in the tray do not change.
 func empty_brew() -> void:
 	brew.reset()
+
+
+## Serve (GDD 4.4, 6.2–6.4): resolves the selected Client's Request against the Brew as it
+## is now. 'Success' needs every requested Parameter in its target State; anything else is
+## 'Failure', with no partial credit. 'Success' pays the Request's maximum_coins and
+## 'Failure' pays 0. Serving an empty Brew is allowed: it is how a Request is refused (D11).
+##
+## Then the Client leaves, a new Brew starts (the pending ing_05 modifier goes too; supply
+## is not refunded), and the next waiting Client is selected. Serving the last one ends the
+## Day. Returns {"request_id", "success", "coins"}, or {} if no Client is waiting.
+func serve() -> Dictionary:
+	if _current_request.is_empty():
+		push_error("DayState: no Client is waiting to be served")
+		return {}
+	var request_id := _current_request
+	var request := _request_row(request_id)
+	var success := is_success(request)
+	var gained := int(request.get("maximum_coins", 0)) if success else 0
+
+	coins += gained
+	results[request_id] = success
+	var index := _waiting.find(request_id)
+	_waiting.remove_at(index)
+	# The Client to the right takes the served one's place; after the last, the one before.
+	_current_request = _waiting[mini(index, _waiting.size() - 1)] if not _waiting.is_empty() else ""
+	brew.reset()
+
+	if _waiting.is_empty():
+		_end_day()
+	changed.emit()
+	if _waiting.is_empty():
+		day_ended.emit()
+	return {"request_id": request_id, "success": success, "coins": gained}
+
+
+## True if every Parameter the Request names ("param_NN_target") is in that State in the
+## Brew. Parameters set to "any" in the Data Sheet have no key and are ignored (GDD 6.2).
+func is_success(request: Dictionary) -> bool:
+	for p: int in _parameter_ids.size():
+		var key := "%s_target" % _parameter_ids[p]
+		if request.has(key) and brew.get_state(p) != int(request[key]):
+			return false
+	return true
+
+
+## The Day is over (GDD 5.4, 7.1): unused Ingredients disappear and are worth nothing.
+func _end_day() -> void:
+	for id: String in _supply:
+		_supply[id] = 0
+		_shifted[id] = false
+
+
+func _request_row(request_id: String) -> Dictionary:
+	for row: Dictionary in _request_rows:
+		if row.get("request_id", "") == request_id:
+			return row
+	return {}

@@ -15,7 +15,10 @@ extends Control
 ## Ingredient again or clicking empty space puts it back. Empty resets the Brew.
 ## Clients (T9): every waiting Client is in the row; clicking one selects it in DayState and
 ## shows its Request. Switching Clients keeps the Brew (GDD 4.2).
-## Not wired yet: Serve and the Day end (T10) and placing on the Shifter (T11).
+## Serve (T10): resolves the selected Client's Request, shows 'Success' or 'Failure' and the
+## Gold Coins gained, and the Client leaves. After the last Client the Day is over: Serve
+## and Empty are disabled until the Day Consequences screen (T12) takes over.
+## Not wired yet: placing on the Shifter (T11).
 
 const ART_DIR := "res://assets/art/"
 const PLACEHOLDER_COLOR := Color(0.38, 0.38, 0.40)
@@ -32,6 +35,8 @@ const HELD_ART_SIZE := Vector2(56, 56)
 const HELD_OFFSET := Vector2(14, 14)
 const BLOCKED_FLASH_COLOR := Color(1.0, 0.45, 0.4)
 const FEEDBACK_SECONDS := 2.5
+const SUCCESS_COLOR := Color(0.55, 0.95, 0.55)
+const FAILURE_COLOR := Color(1.0, 0.55, 0.5)
 ## The Data Sheet's Shifter effect ends with a design-doc pointer such as "(see GDD 5.3)",
 ## which is not meant for players.
 const DOC_REFERENCE := "\\s*\\(see GDD [^)]*\\)"
@@ -69,7 +74,9 @@ var _feedback_serial := 0
 @onready var _ingredient_count_label: Label = %IngredientCountLabel
 @onready var _feedback_label: Label = %FeedbackLabel
 @onready var _station_panel: PanelContainer = %StationPanel
+@onready var _serve_button: Button = %ServeButton
 @onready var _empty_button: Button = %EmptyButton
+@onready var _resolution_label: Label = %ResolutionLabel
 @onready var _shifter_panel: PanelContainer = %ShifterPanel
 @onready var _shifter_title: Label = %ShifterTitle
 @onready var _shifter_art: CenterContainer = %ShifterArt
@@ -93,10 +100,15 @@ func _ready() -> void:
 
 	_station_panel.gui_input.connect(_on_station_input)
 	_shifter_panel.gui_input.connect(_on_shifter_input)
+	_serve_button.pressed.connect(_on_serve_pressed)
 	_empty_button.pressed.connect(_on_empty_pressed)
 	_feedback_label.text = ""
+	_resolution_label.text = ""
 
 	day_state.changed.connect(_refresh)
+	# Deferred: day_ended fires inside serve(), and the last Resolution should be shown
+	# before the Day end takes over the screen.
+	day_state.day_ended.connect(_on_day_ended, CONNECT_DEFERRED)
 	day_state.brew.changed.connect(_refresh_brew)
 	day_state.start_day(1)
 
@@ -191,6 +203,9 @@ func _refresh() -> void:
 	_refresh_ingredients()
 	_refresh_shifter()
 	_refresh_brew()
+	var serving := not day_state.current_request().is_empty()
+	_serve_button.disabled = not serving
+	_empty_button.disabled = not serving
 
 
 func _refresh_brew() -> void:
@@ -211,7 +226,7 @@ func _refresh_client_selection() -> void:
 
 	if current.is_empty():
 		_speaker_label.text = ""
-		_request_label.text = ""
+		_request_label.text = "Day %d is over: every Client has been served." % day_state.day if day_state.is_day_over() else ""
 		_additional_rules_label.text = ""
 		return
 	var request: Dictionary = GameData.row("requests", current)
@@ -270,6 +285,7 @@ func _on_station_input(event: InputEvent) -> void:
 			# No "added X" message: the game deliberately keeps no list of what went in
 			# (GDD 4.3, playtest question 11.3 Q2).
 			_clear_feedback()
+			_resolution_label.text = ""
 			_drop_held()
 		DayState.AddResult.NONE_LEFT:
 			_drop_held()
@@ -291,7 +307,37 @@ func _on_shifter_input(event: InputEvent) -> void:
 func _on_empty_pressed() -> void:
 	_drop_held()
 	_clear_feedback()
+	_resolution_label.text = ""
 	day_state.empty_brew()
+
+
+## Serve (T10). The Resolution stays on screen until the next Ingredient, Empty or Serve,
+## so the player can read it after the Client has left the row.
+func _on_serve_pressed() -> void:
+	_drop_held()
+	_clear_feedback()
+	var request: Dictionary = GameData.row("requests", day_state.current_request())
+	var character: Dictionary = GameData.row("characters", request.get("character_id", ""))
+	var result := day_state.serve()
+	if result.is_empty():
+		return
+	var success: bool = result["success"]
+	var coins: int = result["coins"]
+	_resolution_label.text = "%s: %s paid %d Gold Coin%s." % [
+		"Success" if success else "Failure",
+		character.get("name", request.get("character_id", "")),
+		coins,
+		"" if coins == 1 else "s",
+	]
+	_resolution_label.modulate = SUCCESS_COLOR if success else FAILURE_COLOR
+	print("Served %s: %s, +%d Gold Coins" % [result["request_id"], "Success" if success else "Failure", coins])
+
+
+## Every Client has been served. T12 replaces this with the Day Consequences screen; for
+## now the shop stays on screen with Serve and Empty disabled (see _refresh()).
+func _on_day_ended() -> void:
+	_drop_held()
+	print("Day %d ended: %d Gold Coins, results %s" % [day_state.day, day_state.coins, day_state.results])
 
 
 ## A left click that reaches the root Control landed on empty space: put the Ingredient back.
