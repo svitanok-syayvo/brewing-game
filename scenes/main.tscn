@@ -1,15 +1,223 @@
 [gd_scene format=3 uid="uid://d2qdnkn2dolta"]
 
-[node name="Control" type="Control" unique_id=163536535]
+[ext_resource type="Script" path="res://scripts/ui/main.gd" id="1_main"]
+
+[node name="Main" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("1_main")
 
-[node name="Label" type="Label" parent="." unique_id=464063068]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 23.0
-text = "WEB SMOKE TEST"
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.16, 0.16, 0.17, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Layout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="TopBar" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="DayLabel" type="Label" parent="Margin/Layout/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Day 1"
+
+[node name="BackgroundName" type="Label" parent="Margin/Layout/TopBar"]
+modulate = Color(1, 1, 1, 0.4)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "bg_shop.png"
+
+[node name="RequestsLeftLabel" type="Label" parent="Margin/Layout/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Requests left: 0"
+
+[node name="CoinBox" type="HBoxContainer" parent="Margin/Layout/TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="CoinsLabel" type="Label" parent="Margin/Layout/TopBar/CoinBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Gold Coins: 0"
+
+[node name="ClientRow" type="HBoxContainer" parent="Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="SpeechBubble" type="PanelContainer" parent="Margin/Layout"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="BubbleMargin" type="MarginContainer" parent="Margin/Layout/SpeechBubble"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="BubbleText" type="VBoxContainer" parent="Margin/Layout/SpeechBubble/BubbleMargin"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="SpeakerLabel" type="Label" parent="Margin/Layout/SpeechBubble/BubbleMargin/BubbleText"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.6)
+layout_mode = 2
+text = "speech_bubble.png"
+
+[node name="RequestLabel" type="Label" parent="Margin/Layout/SpeechBubble/BubbleMargin/BubbleText"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Request"
+autowrap_mode = 3
+
+[node name="AdditionalRulesLabel" type="Label" parent="Margin/Layout/SpeechBubble/BubbleMargin/BubbleText"]
+unique_name_in_owner = true
+modulate = Color(1, 1, 1, 0.6)
+layout_mode = 2
+text = "Additional Rules: none"
+
+[node name="Counter" type="HBoxContainer" parent="Margin/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="TrayPanel" type="PanelContainer" parent="Margin/Layout/Counter"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TrayBox" type="VBoxContainer" parent="Margin/Layout/Counter/TrayPanel"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TrayTitle" type="Label" parent="Margin/Layout/Counter/TrayPanel/TrayBox"]
+layout_mode = 2
+text = "Ingredients"
+horizontal_alignment = 1
+
+[node name="IngredientTray" type="GridContainer" parent="Margin/Layout/Counter/TrayPanel/TrayBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="StationPanel" type="PanelContainer" parent="Margin/Layout/Counter"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StationBox" type="VBoxContainer" parent="Margin/Layout/Counter/StationPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="StationTitle" type="Label" parent="Margin/Layout/Counter/StationPanel/StationBox"]
+layout_mode = 2
+text = "Brewing Station"
+horizontal_alignment = 1
+
+[node name="StationArt" type="CenterContainer" parent="Margin/Layout/Counter/StationPanel/StationBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ParameterList" type="VBoxContainer" parent="Margin/Layout/Counter/StationPanel/StationBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="IngredientCountLabel" type="Label" parent="Margin/Layout/Counter/StationPanel/StationBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Ingredients in the Brew: 0 / 3"
+horizontal_alignment = 1
+
+[node name="StationButtons" type="HBoxContainer" parent="Margin/Layout/Counter/StationPanel/StationBox"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="ServeButton" type="Button" parent="Margin/Layout/Counter/StationPanel/StationBox/StationButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 40)
+layout_mode = 2
+text = "Serve"
+
+[node name="EmptyButton" type="Button" parent="Margin/Layout/Counter/StationPanel/StationBox/StationButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 40)
+layout_mode = 2
+text = "Empty"
+
+[node name="ShifterPanel" type="PanelContainer" parent="Margin/Layout/Counter"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+
+[node name="ShifterBox" type="VBoxContainer" parent="Margin/Layout/Counter/ShifterPanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="ShifterTitle" type="Label" parent="Margin/Layout/Counter/ShifterPanel/ShifterBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Shifter"
+horizontal_alignment = 1
+
+[node name="ShifterArt" type="CenterContainer" parent="Margin/Layout/Counter/ShifterPanel/ShifterBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ShifterEffectLabel" type="Label" parent="Margin/Layout/Counter/ShifterPanel/ShifterBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+text = "Shifter effect"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ShifterStatusLabel" type="Label" parent="Margin/Layout/Counter/ShifterPanel/ShifterBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "1 use left today"
+horizontal_alignment = 1
