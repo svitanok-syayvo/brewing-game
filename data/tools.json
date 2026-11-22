@@ -2,6 +2,6 @@
   {
     "tool_id": "tool_01",
     "name": "Shifter",
-    "effect": "Shifts an Ingredient between its Normal Form and its Shifted Form (see GDD 5.3)"
+    "effect": "Shifts an Ingredient between its Normal Form and its Shifted Form"
   }
 ]

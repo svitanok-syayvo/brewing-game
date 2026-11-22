@@ -5,7 +5,10 @@
     "character_id": "char_01",
     "param_01_target": 1,
     "param_03_target": 0,
-    "maximum_coins": 2
+    "maximum_coins": 2,
+    "text": "Nature = Medicinal; Side Effects = Unstable.",
+    "success_text": "Nice one, eh?",
+    "failure_text": "Sucks, eh?"
   },
   {
     "request_id": "req_02",
@@ -13,7 +16,10 @@
     "character_id": "char_02",
     "param_02_target": 2,
     "param_03_target": 1,
-    "maximum_coins": 2
+    "maximum_coins": 2,
+    "text": "Smth to rizz on my friends with weak chaotic brews, eh?",
+    "success_text": "Nice one, eh?",
+    "failure_text": "Sucks, eh?"
   },
   {
     "request_id": "req_03",
@@ -22,7 +28,10 @@
     "param_01_target": 1,
     "param_02_target": 1,
     "param_03_target": 2,
-    "maximum_coins": 3
+    "maximum_coins": 3,
+    "text": "Nature = Medicinal; Potency = Dormant; Side Effects = Chaotic.",
+    "success_text": "Nice one, eh?",
+    "failure_text": "Sucks, eh?"
   },
   {
     "request_id": "req_04",
@@ -30,6 +39,9 @@
     "character_id": "char_04",
     "param_01_target": 2,
     "param_02_target": 2,
-    "maximum_coins": 2
+    "maximum_coins": 2,
+    "text": "Wanna surprise my wife with something... deadly... and very strong! hihihi",
+    "success_text": "Nice one, eh?",
+    "failure_text": "Sucks, eh?"
   }
 ]
